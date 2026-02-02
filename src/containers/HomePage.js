@@ -20,8 +20,11 @@ import { faLessThanEqual,faGavel,faHandshake, faCalendarDays, faMagnifyingGlass,
 import {logout} from'../authSlice.js'
 import UserNameDropdown from '../components/ui/user-name-dropdown.jsx'
 import ChatBox from '../chatbox.js';
-import { useNavigate } from 'react-router-dom';
+
 import { withRouter } from '../withRouter'
+
+
+import { history } from '../store'
 class HomePage extends Component {
     
     constructor(props) {
@@ -147,16 +150,13 @@ class HomePage extends Component {
     }
     ToLogin=()=>{
         // this.props.history.push("/login");
+        // this.props.router.navigate('/login'); 
+        history.push('/login');
     }
     ToUserDetails=()=>{
         // this.props.history.push("/UserDetails");
     }
-    // componentDidUpdate(prevProps) {
-    //     if (prevProps.isLogin !== this.props.isLogin) {
-    //         console.log('⚡️ isLogin changed:', this.props.isLogin);
-    //         console.log('⚡️ userInfo:', this.props.userInfo);
-    //     }
-    // }
+
     handleLogout=()=>{
         this.props.logout(); 
     }
@@ -256,4 +256,7 @@ const mapDispatchToProps = dispatch => {
     };
 };
 
-export default withRouter(connect(mapStateToProps, mapDispatchToProps)(HomePage));
+//export default withNavigate(connect(mapStateToProps, mapDispatchToProps)(HomePage));
+export default withRouter(
+    connect(mapStateToProps, mapDispatchToProps)(HomePage)
+  );

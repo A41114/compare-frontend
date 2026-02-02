@@ -59,6 +59,17 @@ const getAllAdminChatboxByAdminId = (id)=>{
     return axios.get(`/api/getAllAdminChatbox-by-admin-id?id=${id}`)
 }
 
+const createRealEstateService = (data)=>{
+    return axios.post('/api/create-real-estate',data)
+} 
+const settingRealEstateService = (data)=>{
+    return axios.put('/api/setting-real-estate',data)
+} 
+const additionalInformationRealEstateService= (data)=>{
+    return axios.put('/api/additional-information-real-estate',data)
+} 
+
+
 export{getAuctionAnnouncement,createNewCv,getAllCv,GetFollowlById,createNewRecruitment,sendMail,signup,login,chatboxStart,getMessagesByChatboxId,sendMessage,
-    getAllAdminChatboxByAdminId,
+    getAllAdminChatboxByAdminId,createRealEstateService, settingRealEstateService, additionalInformationRealEstateService
 }

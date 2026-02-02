@@ -1,10 +1,10 @@
 import React, { Component,useState } from 'react';
 import { connect } from 'react-redux';
 import axios from 'axios';
-import { property } from 'lodash';
+import { create, property } from 'lodash';
 import  { useRef } from 'react';
 import domtoimage from 'dom-to-image';
-import { getAuctionAnnouncement,createNewRecruitment } from '../services/userService';
+import { getAuctionAnnouncement, createRealEstateService, settingRealEstateService, additionalInformationRealEstateService} from '../services/userService';
 import './VnaPartnerTool.scss'
 import { REGISTER } from 'redux-persist';
 import { type } from '@testing-library/user-event/dist/type';
@@ -25,6 +25,7 @@ class VnaPartnerTool extends Component {
             rulesContent:"",
             rules_num:"",
             secretary:'',
+            auctioneer:'',
 
 
             owner:'',
@@ -55,7 +56,21 @@ class VnaPartnerTool extends Component {
             bank:'',
             onePersonAllowed:'Cho phép',
 
-            HDDGDV:''
+            HDDGDV:'',
+
+
+
+            testStt:'',
+            aucRegTimeStartTest:new Date().getFullYear(),//tg bắt đầu đăng ký và đặt trước theo tg đăng ký test
+            aucRegTimeEndTest:'',//tg kết thúc đăng ký và đặt trước theo tg đăng ký test
+            aucConditionTest:'',
+
+            propertyNameFile:'',
+
+
+            createStatus:'',
+            landInfo:'',
+            lastAuctionId:'',
         }
         this.handleFileChange = this.handleFileChange.bind(this);
         this.handleSearch = this.handleSearch.bind(this);
@@ -93,7 +108,8 @@ class VnaPartnerTool extends Component {
     
         const reader = new FileReader();
         reader.onload = (e) => {
-            let rules_num=e.target.result.match(/Quyết định số (\d+)\.\d+\/\d+/);
+            //let rules_num=e.target.result.match(/Quyết định số (\d+)\.\d+\/\d+/);
+            let rules_num=e.target.result.match(/Quyết định số\s*(\d+)\./);
             // console.log('Quy chế số: ',rules_num[1])  
           this.setState({ rulesContent: e.target.result,
             rules_num:rules_num[1]
@@ -104,7 +120,17 @@ class VnaPartnerTool extends Component {
 
         
     };
-
+    handlePropertyNameFileChange  = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+    
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          this.setState({ propertyNameFile: e.target.result });
+        };
+    
+        reader.readAsText(file);
+    };
     //search
     handleSearch=(keyWord)=>{
         return(this.state.fileContent.includes(keyWord))
@@ -191,32 +217,32 @@ class VnaPartnerTool extends Component {
                 onePersonAllowed:this.state.onePersonAllowed,
                 rulesContent:this.state.rulesContent,
                 rules_num:this.state.rules_num,
+                auctioneer: this.state.auctioneer,
 
                 type:'VnaPartner',
                 status:this.state.status,
-                HDDGDV:this.state.HDDGDV
+                HDDGDV:this.state.HDDGDV,
+                testStt:this.state.testStt
 
             })
+            
         } catch (e) {
             console.log(e)
         }
     }
      
     
-    handleCompare=async()=>{
+    handleCreate=async()=>{
         await this.getData()
 
     }
-    // componentDidUpdate(prevProps, prevState) {
-    //     // // So sánh trạng thái và thuộc tính hiện tại với trước đó
-    //     // if (this.state.auctionAnnoucement !== prevState.auctionAnnoucement) {
-    //     //     // Thực hiện một số hành động khi state thay đổi
-    //     //     console.log('State đã thay đổi!');
-    //     // }
-    // }
+
     handleGetText=async()=>{
+        this.setState({
+            createStatus : "normal"
+        })
         //Chủ tài sản
-        let owner = this.state.fileContent.match(/Đơn vị có tài sản:\s*(.+?)\;/i);
+        let owner = this.state.fileContent.match(/Người có tài sản đấu giá:\s*(.+?)\;/i);
         if (owner && owner[1]) {
             // console.log("Chủ tài sản là:", owner[1]);
             this.setState({
@@ -227,7 +253,7 @@ class VnaPartnerTool extends Component {
         }
 
         //Địa chỉ chủ tài sản
-        let owner_Address = this.state.fileContent.match(/Đơn vị có tài sản:.*?Địa chỉ:\s*(.+?)\./i);
+        let owner_Address = this.state.fileContent.match(/Người có tài sản đấu giá:.*?Địa chỉ:\s*(.+?)\./i);
         if (owner_Address && owner_Address) {
             // console.log("Địa chỉ người có tài sản là:", owner_Address[1]);
             this.setState({
@@ -236,8 +262,6 @@ class VnaPartnerTool extends Component {
         } else {
         console.log("Không tìm thấy địa chỉ người có tài sản.");
         }
-
-
         //Hình thức và phương thức đấu giá, kiểm tra chuỗi rồi trả về 0,1,2..
         let auction_Type=this.state.fileContent.match(/Hình thức và phương thức đấu giá:\s*(.+?)\./i);
 
@@ -276,34 +300,45 @@ class VnaPartnerTool extends Component {
 
 
         //Thời gian đấu giá
-        let bidding_Start_Full_Time = this.state.fileContent.match(/Thời gian:\s*(.+?ngày\s*\d{1,2}\/\d{1,2}\/\d{4})/i);
         let regex=''
-        if(this.state.aucType===4){
-            regex = /(\d{1,2}) giờ (\d{1,2}) phút.*?ngày (\d{1,2})\/(\d{1,2})\/(\d{4})/;
-        }else{      
-            regex = /(\d{1,2})h(\d{2})[’']?\s*ngày\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/;
-        }
-        let  bidding_Start_Time = bidding_Start_Full_Time[1].match(regex);
-        if (bidding_Start_Time) {
-            const gio = bidding_Start_Time[1].padStart(2, '0');     // Giờ đầu tiên
-            const phut = bidding_Start_Time[2].padStart(2, '0');    // Phút đầu tiên
-            const ngay = bidding_Start_Time[3].padStart(2, '0');    // Ngày đầu tiên
-            const thang = bidding_Start_Time[4].padStart(2, '0');   // Tháng
-            const nam = bidding_Start_Time[5];                      // Năm
-          
-            const time = `${gio}:${phut}`;
-            const date = `${ngay}/${thang}/${nam}`;
+        if(this.state.testStt==='test'){
             
-            const bidding_Start_Fulltime = date+' '+time
-            // console.log(bidding_Start_Fulltime) 
+            let aucTime = new Date()
+            aucTime.setMinutes(aucTime.getMinutes()+6)
+            const bidding = `${String(aucTime.getDate()).padStart(2, '0')}/${String(aucTime.getMonth()+1).padStart(2, '0')}/${aucTime.getFullYear()} ${String(aucTime.getHours()).padStart(2, '0')}:${String(aucTime.getMinutes()).padStart(2, '0')}`;
+            
             this.setState({
-                bidding_Start_Fulltime:bidding_Start_Fulltime
+                bidding_Start_Fulltime:bidding
             })
-        } else {
-            console.log("Không tìm thấy thông tin.");
+            
+        }else{
+            let bidding_Start_Full_Time = this.state.fileContent.match(/Thời gian:\s*(.+?ngày\s*\d{1,2}\/\d{1,2}\/\d{4})/i);
+            if(this.state.aucType===4){
+                regex = /(\d{1,2}) giờ (\d{1,2}) phút.*?ngày (\d{1,2})\/(\d{1,2})\/(\d{4})/;
+            }else{      
+                regex = /(\d{1,2})h(\d{2})[’']?\s*ngày\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/;
+            }
+            let  bidding_Start_Time = bidding_Start_Full_Time[1].match(regex);
+            if (bidding_Start_Time) {
+                const gio = bidding_Start_Time[1].padStart(2, '0');     // Giờ đầu tiên
+                const phut = bidding_Start_Time[2].padStart(2, '0');    // Phút đầu tiên
+                const ngay = bidding_Start_Time[3].padStart(2, '0');    // Ngày đầu tiên
+                const thang = bidding_Start_Time[4].padStart(2, '0');   // Tháng
+                const nam = bidding_Start_Time[5];                      // Năm
+            
+                const time = `${gio}:${phut}`;
+                const date = `${ngay}/${thang}/${nam}`;
+                
+                const bidding_Start_Fulltime = date+' '+time
+                // console.log(bidding_Start_Fulltime) 
+                this.setState({
+                    bidding_Start_Fulltime:bidding_Start_Fulltime
+                })
+            } else {
+                console.log("Không tìm thấy thông tin.");
+            }
+
         }
-
-
         //Địa điểm đấu giá
         let aucAddress = this.state.fileContent.match(/Địa điểm:\s*(.+?)\./i);
         if (aucAddress && aucAddress[1]) {
@@ -317,33 +352,46 @@ class VnaPartnerTool extends Component {
 
 
         //Thời gian đăng ký/đặt cọc theo đăng ký
-        let aucRegTimeFull = this.state.fileContent.match(/Thời gian, địa điểm bán hồ sơ mời tham gia đấu giá, tiếp nhận hồ sơ tham gia đấu giá:\s*(.+?)\s+(tại|trên)\b/i);
-        regex = /Từ (\d{1,2})h(\d{2})[’']?\s+ngày\s+(\d{1,2})\/(\d{1,2})\/(\d{4}) đến (\d{1,2})h(\d{2})[’']?\s+ngày\s+(\d{1,2})\/(\d{1,2})\/(\d{4})/;
-        let aucRegTime = aucRegTimeFull[1].match(regex);
-        if (aucRegTime) {
-            const startHour = aucRegTime[1].padStart(2, '0');
-            const startMinute = aucRegTime[2].padStart(2, '0');
-            const startDay = aucRegTime[3].padStart(2, '0');
-            const startMonth = aucRegTime[4].padStart(2, '0');
-            const startYear = aucRegTime[5];
-          
-            const endHour = aucRegTime[6].padStart(2, '0');
-            const endMinute = aucRegTime[7].padStart(2, '0');
-            const endDay = aucRegTime[8].padStart(2, '0');
-            const endMonth = aucRegTime[9].padStart(2, '0');
-            const endYear = aucRegTime[10];
-          
-            const start = `${startDay}/${startMonth}/${startYear} ${startHour}:${startMinute}`;
-            const end = `${endDay}/${endMonth}/${endYear} ${endHour}:${endMinute}`;
-          
+        if(this.state.testStt==='test'){
+            let today = new Date()
+            let endReg = new Date()
+            endReg.setMinutes(endReg.getMinutes()+3)
+            const start = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth()+1).padStart(2, '0')}/${today.getFullYear()} ${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
+            const end = `${String(endReg.getDate()).padStart(2, '0')}/${String(endReg.getMonth()+1).padStart(2, '0')}/${endReg.getFullYear()} ${String(endReg.getHours()).padStart(2, '0')}:${String(endReg.getMinutes()).padStart(2, '0')}`;
+            
             this.setState({
                 aucRegTimeStart:start,
                 aucRegTimeEnd:end
             })
-        } else {
-        console.log("Không tìm thấy thời gian");
+            
+        }else{
+            let aucRegTimeFull = this.state.fileContent.match(/Thời gian, địa điểm bán hồ sơ mời tham gia đấu giá, tiếp nhận hồ sơ tham gia đấu giá:\s*(.+?)\s+(tại|trên)\b/i);
+            regex = /Từ (\d{1,2})h(\d{2})[’']?\s+ngày\s+(\d{1,2})\/(\d{1,2})\/(\d{4}) đến (\d{1,2})h(\d{2})[’']?\s+ngày\s+(\d{1,2})\/(\d{1,2})\/(\d{4})/;
+            let aucRegTime = aucRegTimeFull[1].match(regex);
+            if (aucRegTime) {
+                const startHour = aucRegTime[1].padStart(2, '0');
+                const startMinute = aucRegTime[2].padStart(2, '0');
+                const startDay = aucRegTime[3].padStart(2, '0');
+                const startMonth = aucRegTime[4].padStart(2, '0');
+                const startYear = aucRegTime[5];
+            
+                const endHour = aucRegTime[6].padStart(2, '0');
+                const endMinute = aucRegTime[7].padStart(2, '0');
+                const endDay = aucRegTime[8].padStart(2, '0');
+                const endMonth = aucRegTime[9].padStart(2, '0');
+                const endYear = aucRegTime[10];
+            
+                const start = `${startDay}/${startMonth}/${startYear} ${startHour}:${startMinute}`;
+                const end = `${endDay}/${endMonth}/${endYear} ${endHour}:${endMinute}`;
+            
+                this.setState({
+                    aucRegTimeStart:start,
+                    aucRegTimeEnd:end
+                })
+            } else {
+            console.log("Không tìm thấy thời gian");
+            }
         }
-
 
         //Địa điểm điều kiện, cách thức đăng ký
         let aucCondition = this.state.fileContent.match(/Điều kiện, cách thức đăng ký tham gia đấu giá:\s*(.+?)\./i);
@@ -560,20 +608,495 @@ class VnaPartnerTool extends Component {
         }else{
             console.log("Không tìm số hợp đồng dịch vụ đấu giá");
         }
+    }
+    parseMoney=(v)=>{
+        if (!v) return 0;
+        return Number(v.replace(/\./g, '')); // bỏ dấu chấm phân tách 1.000.000
+    }
+    testBDS=()=>{
+        this.setState({
+            createStatus : 'real-estate'
+        })
+        const lines = this.state.propertyNameFile.split(/\r?\n/);
+        const allObjects = [];
+      
+        for (const line of lines) {
+          const t = line.trim();
+          if (!t) continue;
+      
+          const parts = t.split(/\s+/);
+          if (parts.length < 8) continue;
+      
+          // GÁN TỪNG BIẾN TỪNG CỘT
+          const stt          = parts[0];
+          const kyHieu       = parts[1];
+          const dienTich     = parseFloat(parts[2]);
+          const donGia       = parts[3];
+          const giaKhoiDiem  = parts[4];
+          const tienDatTruoc = parts[5];
+          const buocGia      = parts[6];
+          const tienHoSo     = parts[7];
+      
+          // TẠO OBJECT CỦA HÀNG HIỆN TẠI
+          const obj = {
+            stt,
+            kyHieu,
+            dienTich,
+            donGia,
+            giaKhoiDiem,
+            tienDatTruoc,
+            buocGia,
+            tienHoSo
+          };
+          // PUSH VÀO OBJECT LỚN
+          allObjects.push(obj);
+        }
+        this.setState({
+            landInfo : allObjects
+        })
+        console.log(allObjects);
+    }
 
+
+    handleGetTextBDS=async()=>{
+        //Chủ tài sản
+        let owner = this.state.fileContent.match(/Người có tài sản đấu giá:\s*(.+?)\;/i);
+        if (owner && owner[1]) {
+            // console.log("Chủ tài sản là:", owner[1]);
+            this.setState({
+                owner:owner[1]
+                
+            })
+        } else {
+        console.log("Không tìm thấy chủ tài sản.");
+        }
+
+        //Địa chỉ chủ tài sản
+        let owner_Address = this.state.fileContent.match(/Người có tài sản đấu giá:.*?Địa chỉ:\s*(.+?)\./i);
+        if (owner_Address && owner_Address) {
+            // console.log("Địa chỉ người có tài sản là:", owner_Address[1]);
+            this.setState({
+                owner_Address:owner_Address[1]
+            })
+        } else {
+        console.log("Không tìm thấy địa chỉ người có tài sản.");
+        }
+        //Hình thức và phương thức đấu giá, kiểm tra chuỗi rồi trả về 0,1,2..
+        let auction_Type=this.state.fileContent.match(/Hình thức và phương thức đấu giá:\s*(.+?)\./i);
+
+        if (auction_Type && auction_Type){
+            // console.log("Hình thức đấu giá là:", auction_Type[1]);
+            if(auction_Type[1].includes('bằng lời nói')){
+                await this.setState({
+                    aucType:1
+                })
+            }else if(auction_Type[1].includes('trực tiếp')){
+                await this.setState({
+                    aucType:2
+                })
+            }else if(auction_Type[1].includes('gián tiếp')){
+                await this.setState({
+                    aucType:3
+                })
+            }else if(auction_Type[1].includes('trực tuyến')){
+                await this.setState({
+                    aucType:4
+                })
+            }
+
+            if(auction_Type[1].includes('trả giá lên')){
+                this.setState({
+                    aucMethod:1
+                })
+            }else if(auction_Type[1].includes('trả giá xuống')){
+                this.setState({
+                    aucMethod:2
+                })
+            }
+        } else {
+            console.log("Không tìm thấy hình thức đấu giá.");
+        }
+
+
+        //Thời gian đấu giá
+        let regex=''
+        if(this.state.testStt==='test'){
+            
+            let aucTime = new Date()
+            aucTime.setMinutes(aucTime.getMinutes()+6)
+            const bidding = `${String(aucTime.getDate()).padStart(2, '0')}/${String(aucTime.getMonth()+1).padStart(2, '0')}/${aucTime.getFullYear()} ${String(aucTime.getHours()).padStart(2, '0')}:${String(aucTime.getMinutes()).padStart(2, '0')}`;
+            
+            this.setState({
+                bidding_Start_Fulltime:bidding
+            })
+            
+        }else{
+            let bidding_Start_Full_Time = this.state.fileContent.match(/Thời gian:\s*(.+?ngày\s*\d{1,2}\/\d{1,2}\/\d{4})/i);
+            if(this.state.aucType===4){
+                regex = /(\d{1,2}) giờ (\d{1,2}) phút.*?ngày (\d{1,2})\/(\d{1,2})\/(\d{4})/;
+            }else{      
+                regex = /(\d{1,2})h(\d{2})[’']?\s*ngày\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/;
+            }
+            let  bidding_Start_Time = bidding_Start_Full_Time[1].match(regex);
+            if (bidding_Start_Time) {
+                const gio = bidding_Start_Time[1].padStart(2, '0');     // Giờ đầu tiên
+                const phut = bidding_Start_Time[2].padStart(2, '0');    // Phút đầu tiên
+                const ngay = bidding_Start_Time[3].padStart(2, '0');    // Ngày đầu tiên
+                const thang = bidding_Start_Time[4].padStart(2, '0');   // Tháng
+                const nam = bidding_Start_Time[5];                      // Năm
+            
+                const time = `${gio}:${phut}`;
+                const date = `${ngay}/${thang}/${nam}`;
+                
+                const bidding_Start_Fulltime = date+' '+time
+                // console.log(bidding_Start_Fulltime) 
+                this.setState({
+                    bidding_Start_Fulltime:bidding_Start_Fulltime
+                })
+            } else {
+                console.log("Không tìm thấy thông tin.");
+            }
+
+        }
+        //Địa điểm đấu giá
+        let aucAddress = this.state.fileContent.match(/Địa điểm:\s*(.+?)\./i);
+        if (aucAddress && aucAddress[1]) {
+            // console.log("Địa điểm đấu giá là:", aucAddress[1]);
+            this.setState({
+                aucAddress:aucAddress[1]
+            })
+        } else {
+        console.log("Không tìm thấy địa điểm đấu giá.");
+        }
+
+
+        //Thời gian đăng ký/đặt cọc theo đăng ký
+        if(this.state.testStt==='test'){
+            let today = new Date()
+            let endReg = new Date()
+            endReg.setMinutes(endReg.getMinutes()+3)
+            const start = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth()+1).padStart(2, '0')}/${today.getFullYear()} ${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
+            const end = `${String(endReg.getDate()).padStart(2, '0')}/${String(endReg.getMonth()+1).padStart(2, '0')}/${endReg.getFullYear()} ${String(endReg.getHours()).padStart(2, '0')}:${String(endReg.getMinutes()).padStart(2, '0')}`;
+            
+            this.setState({
+                aucRegTimeStart:start,
+                aucRegTimeEnd:end
+            })
+            
+        }else{
+            let aucRegTimeFull = this.state.fileContent.match(/Thời gian, địa điểm bán hồ sơ mời tham gia đấu giá, tiếp nhận hồ sơ tham gia đấu giá:\s*(.+?)\s+(tại|trên)\b/i);
+            regex = /Từ (\d{1,2})h(\d{2})[’']?\s+ngày\s+(\d{1,2})\/(\d{1,2})\/(\d{4}) đến (\d{1,2})h(\d{2})[’']?\s+ngày\s+(\d{1,2})\/(\d{1,2})\/(\d{4})/;
+            let aucRegTime = aucRegTimeFull[1].match(regex);
+            if (aucRegTime) {
+                const startHour = aucRegTime[1].padStart(2, '0');
+                const startMinute = aucRegTime[2].padStart(2, '0');
+                const startDay = aucRegTime[3].padStart(2, '0');
+                const startMonth = aucRegTime[4].padStart(2, '0');
+                const startYear = aucRegTime[5];
+            
+                const endHour = aucRegTime[6].padStart(2, '0');
+                const endMinute = aucRegTime[7].padStart(2, '0');
+                const endDay = aucRegTime[8].padStart(2, '0');
+                const endMonth = aucRegTime[9].padStart(2, '0');
+                const endYear = aucRegTime[10];
+            
+                const start = `${startDay}/${startMonth}/${startYear} ${startHour}:${startMinute}`;
+                const end = `${endDay}/${endMonth}/${endYear} ${endHour}:${endMinute}`;
+            
+                this.setState({
+                    aucRegTimeStart:start,
+                    aucRegTimeEnd:end
+                })
+            } else {
+            console.log("Không tìm thấy thời gian");
+            }
+        }
+
+        //Địa điểm điều kiện, cách thức đăng ký
+        let aucCondition = this.state.fileContent.match(/Điều kiện, cách thức đăng ký tham gia đấu giá:\s*(.+?)\./i);
+        if (aucCondition && aucCondition[1]) {
+            // console.log("Địa điểm, điều kiện, cách thức đấu giá là:", aucCondition[1]);
+            this.setState({
+                aucCondition:aucCondition[1]
+            })
+        } else {
+            console.log("Không tìm thấy địa điểm, điều kiện, cách thức đấu giá.");
+        }
         
 
-       
+        //Thời gian, địa điểm xem tài sản
+        
+        let propertyViewLocation = this.state.fileContent.match(/(?<=[-+•\d.\s]*(?:Thời gian, địa điểm\s*)?xem tài sản:\s*(?:\n)?)([\s\S]*?)(?=[-+•\d.\s]*Nộp tiền đặt trước:)/i);
+        // console.log('propertyViewLocation:',propertyViewLocation)
+        if(propertyViewLocation){
+            this.setState({
+                propertyViewLocation:propertyViewLocation[0].trim()
+            })
+            //Địa điểm xem tài sản
+            let propertyPlace 
+            let propertyPlaceFix
+            // propertyPlace = propertyViewLocation[0].match(/tại[^\n\r]*/i)
+            if(propertyViewLocation[0].includes('Nơi lưu giữ tài sản')){
+                propertyPlace = propertyViewLocation[0].match(/tại[^\n\r]*/i)
+                //lấy phần địa chỉ bỏ vào propertyPlaceFix
+                propertyPlaceFix = propertyPlace[0].match(/Địa chỉ:\s*(.*)/i)
+            }else{
+                // Tìm "tại:" và xem sau nó có xuống dòng không
+                // let taiMatch = propertyViewLocation[0].trim().match(/tại:\s*([\s\S]*)/i);
+                let taiMatch = propertyViewLocation[0].trim().match(/tại:\s*(\n)?/i);
+                console.log('taiMatch: ',taiMatch)
+                if (taiMatch) {
+                    const afterTai = taiMatch[0];
+
+                    if (afterTai.match(/\r?\n/)) {
+                        // console.log('Có')
+                      // Nếu sau "tại:" có xuống dòng → lấy tất cả sau "tại:"
+                        propertyPlace = propertyViewLocation[0].trim().match(/tại([\s\S]*?)*/i)
+                        propertyPlaceFix=[]
+                        propertyPlaceFix[1]=propertyPlace[0]
+                    }else{
+                        // console.log('Không')
+                        propertyPlace = propertyViewLocation[0].match(/tại[^\n\r]*/i)
+                        //lấy phần địa chỉ bỏ vào propertyPlaceFix
+                        propertyPlaceFix = propertyPlace[0].match(/Địa chỉ:\s*(.*)/i)
+                    }
+                }
+
+            }
+            
+            if(propertyPlaceFix){
+                console.log(propertyPlaceFix)
+                this.setState({
+                    propertyPlace:propertyPlaceFix[1]
+                })
+            }
+            //Thời gian xem tài sản
+            // let propertyViewTime = propertyViewLocation[0].match(/Thời gian xem tài sản:?\s*(.*?)\s+tại/i)
+            let propertyViewTime=''
+            if(propertyViewLocation[0].trim().includes('Thời gian xem tài sản')){
+                propertyViewTime = propertyViewLocation[0].trim().match(/[-+•\d.\s]*Thời gian xem tài sản:\s*([\s\S]*?)tại/i)
+            }else{
+                propertyViewTime = propertyViewLocation[0].trim().match(/([\s\S]*?)tại/i)
+            }
+            if(propertyViewTime){
+                // console.log(propertyPlace[0])
+                this.setState({
+                    propertyViewTime:propertyViewTime[1]
+                })
+            }
+        }
+        //Thời gian, địa điểm bán hồ sơ
+        let fileSellLocation=this.state.fileContent.match(/[-+•\d.\s]*Thời gian, địa điểm bán hồ sơ mời tham gia đấu giá, tiếp nhận hồ sơ tham gia đấu giá:\s*([\s\S]*?)(?=\n[-+•\d.\s]*(?:Thời gian, địa điểm\s*)?xem tài sản)/i);
+        if(fileSellLocation){
+            // console.log('Thời gian, địa điểm bán hồ sơ: ',fileSellLocation[1])
+            this.setState({
+                fileSellLocation:fileSellLocation[1]
+            })
+        }else{
+            console.log('Không tìm thấy thời gian, địa điểm bán hồ sơ')
+        }
+
+
+        /////////////////////////////////////////////Thêm tài sản ///////////////////////////////////////////////
+        //Tên tài sản
+        let propertyName = this.state.fileContent.match(/(?:- |\d+\.\s*)?(?:Tên\s*)?tài sản đấu giá(?:\s*là\s*)?:\s*([\s\S]*?)(?=\n[-\d]+\.\s*(?:Tổng\s*)?Giá khởi điểm:|\n-?\s*Giá khởi điểm:)/i);
+        if(!propertyName){
+            propertyName = this.state.fileContent.match(/(?:^|\n)\s*\d+\.\s*Tên\s+tài\s+sản\s+đấu\s+giá:\s*([\s\S]*?)(?=\n\s*\d+\.\s*Giá\s+khởi\s+điểm:)/i);
+        }
+        if (propertyName && propertyName[1]) {
+            // console.log("Tài sản đấu giá:", propertyName[1]);
+            this.setState({
+                propertyName:propertyName[1]
+            })
+            //Tên tài sản rút gọn
+            let shortPropertyName = propertyName[1].match(/^.*$/m)
+            if(shortPropertyName){
+                // console.log(shortPropertyName)
+                this.setState({
+                    shortPropertyName:shortPropertyName[0]
+                })
+            }
+            if(propertyName[1].toLowerCase().includes('ô tô')){
+                this.setState({
+                    isCar:true
+                })
+            }else{
+                this.setState({
+                    isCar:false
+                })
+            }
+        } else {
+        console.log("Không tìm thấy tài sản đấu giá.");
+        }
+
+        //Địa điểm xem tài sản/ Nơi có tài sản
+        let propertyVie = this.state.fileContent.match(/(?:- |\d+\.\s*)?(?:Tên\s*)?Tài sản đấu giá:\s*([\s\S]*?)(?=\n[-\d]+\.\s*Giá khởi điểm:|\n-?\s*Giá khởi điểm:)/i);
+        if (propertyName && propertyName[1]) {
+            // console.log("Tài sản đấu giá:", propertyName[1]);
+            this.setState({
+                propertyName:propertyName[1]
+            })
+        } else {
+        console.log("Không tìm thấy tài sản đấu giá.");
+        }
+        
+
+
+        //Giá khởi điểm
+        let starting_Price = this.state.fileContent.match(/Giá khởi điểm:\s*([\d\.]+)\s*đồng/i);
+        if (starting_Price && starting_Price[1]) {
+            // console.log("Giá khởi điểm là:", starting_Price[1]);
+            this.setState({
+                propertyStartPrice:starting_Price[1]
+            })
+        } else {
+        console.log("Không tìm thấy giá khởi điểm.");
+        }
+        //Đơn vị đặt cọc
+        this.setState({
+            depositUnit:0
+        })
+        //Tiền đặt trước
+        let deposit = this.state.fileContent.match(/Tiền đặt trước:\s*([\d\.]+)\s*đồng/i);
+        if (deposit && deposit[1]) {
+            // console.log("Tiền đặt trước là:", deposit[1]);
+            this.setState({
+                deposit:deposit[1]
+            })
+        } else {
+        console.log("Không tìm thấy tiền đặt trước.");
+        }
+
+        //Tiền mua hồ sơ
+        let fileCost = this.state.fileContent.match(/Tiền mua hồ sơ mời tham gia đấu giá:\s*([\d\.]+)\s*đồng/i);
+        if (fileCost && fileCost[1]) {
+            // console.log("Tiền mua hồ sơ là:", fileCost[1]);
+            this.setState({
+                fileCost:fileCost[1]
+            })
+        } else {
+        console.log("Không tìm thấy tiền mua hồ sơ.");
+        }
+        //Bước giá
+        let step = this.state.fileContent.match(/Bước giá:\s*([\d\.]+)\s*đồng/i);
+        if (step && step[1]) {
+            // console.log("Tiền đặt trước là:", deposit[1]);
+            this.setState({
+                step:step[1]
+            })
+        } else {
+        console.log("Không tìm thấy bước giá.");
+        }
+        //Tài khoản ngân hàng
+        let bank=''
+        //ICB
+        if(this.state.fileContent.includes(110601631555)){
+            bank = 110601631555
+        //ICB
+        }else if(this.state.fileContent.includes(112609055555)){
+            bank = 112609055555
+        //TK chính    
+        }else if(this.state.fileContent.includes(115644399999)){
+            bank='Tài khoản chính'
+        //BIDV Long Biên (có 2 số)
+        }else if(this.state.fileContent.includes(1500678622)||this.state.fileContent.includes(15010000678622)){
+            bank = 1500678622
+        //VPB
+        }else if(this.state.fileContent.includes(9015599)){
+            bank = 9015599
+        //BIDV Lạch Tray
+        }else if(this.state.fileContent.includes(3280830162)){
+            bank = 3280830162
+        }else if(this.state.fileContent.includes(8630058758)){
+            bank = 8630058758
+        }else if(this.state.fileContent.includes(8688222222)){
+            bank = 8688222222
+        }
+        this.setState({
+            bank:bank
+        })
+        
+        //Hợp đồng đấu giá dịch vụ số ([\s\S]*?)
+        let HDDGDV = this.state.planContent.match(/Thực hiện Hợp đồng dịch vụ đấu giá tài sản số \s*(.+?)Công ty Đấu giá hợp danh VNA/i);
+        // let HDDGDV = this.state.planContent.match(/Thực hiện[^,]*/i);
+        // console.log('HĐĐGDV: ',HDDGDV)
+        if(HDDGDV){
+            this.setState({
+                HDDGDV: HDDGDV[0]
+            })
+        }else{
+            console.log("Không tìm số hợp đồng dịch vụ đấu giá");
+        }
     }
+    handleCreateRealEstate = async()=>{
+        try {
+            let createRealEstate = await createRealEstateService({
+                    name: "Quyền sử dụng đất ở đô thị có ký hiệu "+this.state.landInfo[0].kyHieu+" tại đường Nguyễn Du, phường Việt Trì, tỉnh Phú Thọ",
+                    categoryId: "68cbb482aa8acbca3f2b8351",
+                    landArea: this.state.landInfo[0].dienTich,
+                    viewingLocation: this.state.propertyViewLocation,
+                    viewingTime: this.state.propertyViewTime,
+                    lotCode: this.state.landInfo[0].kyHieu,
+                    description: this.state.propertyName,
+            })
+            await this.setState({
+                lastAuctionId: createRealEstate.data.data.lastAuctionId
+            })
+            console.log('createRealEstate res: ', createRealEstate.data.data.lastAuctionId)
+
+            let settingRealEstate = await this.handleSettingRealEstate(createRealEstate.data.data.lastAuctionId)
+            console.log('settingRealEstate res: ', settingRealEstate)
+            
+        } catch (e) {
+            console.log(e)
+        }
+    }
+    handleSettingRealEstate = async(lastAuctionId)=>{
+        try {
+            let createRealEstate = await settingRealEstateService({
+                lastAuctionId: lastAuctionId,//id gắn vào link
+                allowSingleBidder: false,//mặc định
+                assistantId: "67905e5acb3f7305b05d1040",
+                auctioneerId: "66a49bff5fb00c03eb86b40e",
+                bidEndTime: "2026-01-15T09:30:00+07:00",
+                bidStartTime: "2026-01-15T09:00:00+07:00",
+                depositAmount: 52800000,
+                depositEndTime: "2026-01-12T17:00:00+07:00",
+                depositStartTime: "2026-01-06T08:00:00+07:00",
+                isDepositRequired: true,//mặc định
+                isRegFeeRequired: true,//mặc định
+                maxExtraRounds: -1,//mặc định
+                maxStepPerBid: 0,//mặc định
+                method: 1,//mặc định
+                partnerBankAccountId: "67d15b7a971895e1985affff",//mặc định
+                priceStep: 2000000,
+                realEstatePricingOption: 0,//mặc định
+                regEndTime: "2026-01-12T17:00:00+07:00",
+                regFeeAmount: 100000,
+                regStartTime: "2026-01-06T08:00:00+07:00",
+                startPrice: 264000000,
+            })
+            console.log('createRealEstate res: ', createRealEstate.data.data.lastAuctionId)
+            
+        } catch (e) {
+            console.log(e)
+        }
+    }
+
     handleChangeStatus=(stt)=>{
         this.setState({
             status:stt
         })
     }
+    handleChangeTestStatus=(testStt)=>{
+        this.setState({
+            testStt:testStt
+        })
+    }
     
     render() {
         
-        // console.log('states: ',this.state)
+        console.log('VnaPartnerTool states: ',this.state)
         
         return (
             <div className='container'>
@@ -582,7 +1105,13 @@ class VnaPartnerTool extends Component {
                         <div className='secretary-container'>
                             <label>Tên thư ký: </label>
                             <input className='secretary-name' type="text" onChange={(event)=>this.handleOnChangeInput(event,'secretary')} />
+                            
                         </div>
+                        <div className='auctioneer-container'>
+                            <label>Đấu giá viên: </label>
+                            <input className='auctioneer-name' type="text" onChange={(event)=>this.handleOnChangeInput(event,'auctioneer')} />
+                        </div>
+                        
                         <div>
                             <label>Đấu giá 1 người: </label>
                             <select className='form-control'
@@ -605,11 +1134,12 @@ class VnaPartnerTool extends Component {
                             <label>Quy chế: </label>
                             <input type="file"onChange={this.handleRulesChange} />
                         </div>
-                        
-                        
-                        
                     </div>
-                    
+
+                    <div className='property-name-table'>
+                        <label>Tên tài sản theo bảng (BĐS): </label>
+                        <input type="file"onChange={this.handlePropertyNameFileChange} />
+                    </div>
                     
                     
                     
@@ -620,11 +1150,27 @@ class VnaPartnerTool extends Component {
                             <button className='handle-status-create' onClick={()=>this.handleChangeStatus('edit')}>Trạng thái: Tạo</button>:
                             <button className='handle-status-edit' onClick={()=>this.handleChangeStatus('create')}>Trạng thái: Sửa</button>
                         }
-                        
-                        
-                        <button className='handle-compare-btn' onClick={()=>this.handleCompare()}>Tạo tài sản</button>
-                        <button className='handle-compare-btn' onClick={()=>this.handleGetText()}>Lấy dữ liệu text</button>
+
+                        {   this.state.createStatus===''&&
+                            <button className='handle-compare-btn'>Chưa lấy thông tin</button>
+                        }
+                        {   this.state.createStatus==='normal'&&
+                            <button className='handle-compare-btn' onClick={()=>this.handleCreate()}>Tạo tài sản khác</button>
+                        }
+                        {   this.state.createStatus==='real-estate'&&
+                            <button className='handle-compare-btn' onClick={()=>this.handleCreateRealEstate()}>Tạo bất động sản</button>
+                        }
+
+                        <button className='handle-compare-btn' onClick={()=>this.handleGetText()}>Lấy dữ liệu tài sản khác</button>
+                        <button className='handle-compare-btn' onClick={()=>this.testBDS()}>Lấy dữ liệu bất động sản</button>
+
+                        {this.state.testStt==='test'?
+                            <button className='handle-status-edit' onClick={()=>this.handleChangeTestStatus('notTest')}>Test</button>:
+                            <button className='handle-status-create' onClick={()=>this.handleChangeTestStatus('test')}>Không test</button>
+                            
+                        }
                         </>
+                        
                         }
                     </div>
                         

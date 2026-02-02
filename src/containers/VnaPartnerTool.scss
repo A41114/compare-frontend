@@ -102,6 +102,11 @@
                     width: 140px;
                 }
             }
+            .auctioneer-container{
+                .auctioneer-name{
+                    width: 140px;
+                }
+            }
             .plan{
                 margin-left: -95px;
             }
@@ -109,6 +114,12 @@
                 margin-left: -100px;
             }
         }
+        .property-name-table{
+            justify-self: center;
+            margin-left: 144px;
+            margin-top: 10px;
+        }
+
         .file-content{
             // border: 1px solid orange;
             // overflow: hidden; /* Ẩn văn bản thừa */

@@ -8,7 +8,6 @@ import { getAuctionAnnouncement,createNewRecruitment } from '../services/userSer
 import './Home.scss'
 import { REGISTER } from 'redux-persist';
 
-
 class Home extends Component {
     
     constructor(props) {
@@ -97,8 +96,8 @@ class Home extends Component {
         const parts = date.split('/');
         
         // Loại bỏ số 0 ở đầu ngày và tháng
-        const day = parts[0].replace(/^0+/, '');
-        const month = parts[1].replace(/^0+/, '');
+        const day = parts[0];
+        const month = parts[1];
         const year = parts[2];
 
         // Trả về chuỗi ngày tháng đã được xử lý
@@ -122,28 +121,36 @@ class Home extends Component {
                 formData:formData,
                 type:'compare'
             })
-            console.log('res:',auctionAnnoucement.res)
+            console.log('res_compare:',auctionAnnoucement.res)
             
             let [deposit_Start_Date, deposit_Start_Time] = await auctionAnnoucement.res.register_Deposit_Start.split(" ");
             let [deposit_End_Date, deposit_End_Time] = await auctionAnnoucement.res.register_Deposit_End.split(" ");
             
             let [bidding_Start_Date, bidding_Start_Time] = await auctionAnnoucement.res.start_bidding.split(" ");
-            let [bidding_End_Date, bidding_End_Time] = await auctionAnnoucement.res.end_bidding.split(" ");
-            // console.log('date: ',deposit_Start_Date)
-            // console.log('time: ',this.formatTime(deposit_Start_Time))
+            // let [bidding_End_Date, bidding_End_Time] = await auctionAnnoucement.res.end_bidding.split(" ");
+            let [ bidding_End_Time, bidding_End_Date] = await auctionAnnoucement.res.end_bidding.split(" ");
+            // console.log('deposit_Start_Date: ',deposit_Start_Date)
+            // console.log('deposit_Start_Time: ',deposit_Start_Time)
+            // console.log('deposit_End_Date: ',deposit_End_Date)
+            // console.log('deposit_End_Time: ',deposit_End_Time)
+            // console.log('bidding_Start_Date: ',bidding_Start_Date)
+            // console.log('bidding_Start_Time: ',bidding_Start_Time)
+            // console.log('bidding_End_Time: ',bidding_End_Time)
+            // console.log('bidding_End_Date: ',bidding_End_Date)
+
+        
             this.setState({
                 auctionAnnoucement:auctionAnnoucement.res,
-
                 register_Start_End:'Thời gian, địa điểm bán hồ sơ mời tham gia đấu giá, tiếp nhận hồ sơ tham gia đấu giá: Từ '+this.formatTime(deposit_Start_Time)+
                 ' ngày '+this.formatDate(deposit_Start_Date)+' đến '+this.formatTime(deposit_End_Time)+' ngày '+this.formatDate(deposit_End_Date),
                 deposit_Start_End:'Nộp tiền đặt trước: Từ '+this.formatTime(deposit_Start_Time)+' ngày '+this.formatDate(deposit_Start_Date)+' đến '+this.formatTime(deposit_End_Time)+' ngày '+this.formatDate(deposit_End_Date),
-                starting_Price:'Giá khởi điểm: '+auctionAnnoucement.res.starting_price.replaceAll(",", "."),
-                step:'Bước giá: '+auctionAnnoucement.res.step.replaceAll(",", "."),
-                fee:'Tiền mua hồ sơ mời tham gia đấu giá: '+auctionAnnoucement.res.fee.replaceAll(",", "."),
+                starting_Price:'Giá khởi điểm: '+auctionAnnoucement.res.starting_price.replaceAll(",", ".").replaceAll("VND", "đồng"),
+                step:'Bước giá: '+auctionAnnoucement.res.step.replaceAll(",", ".").replaceAll("VND", "đồng"),
+                fee:'Tiền mua hồ sơ mời tham gia đấu giá: '+auctionAnnoucement.res.fee.replaceAll(",", ".").replaceAll("VND", "đồng"),
                 owner:auctionAnnoucement.res.owner,
                 place:auctionAnnoucement.res.place,
                 checking_Property:'tài sản: '+auctionAnnoucement.res.checkProperty,
-                deposit:'Tiền đặt trước: '+auctionAnnoucement.res.deposit.replaceAll(",", "."),
+                deposit:'Tiền đặt trước: '+auctionAnnoucement.res.deposit.replaceAll(",", ".").replaceAll("VND", "đồng"),
                 bidding_Start_End:'- Thời gian: '+this.formatTime2(bidding_Start_Time)+' đến '+this.formatTime2(bidding_End_Time)+' ngày '+this.formatDate(bidding_Start_Date),
             })
         } catch (e) {
@@ -166,16 +173,11 @@ class Home extends Component {
     
     render() {
         
-        // console.log('states: ',this.state)
-        
-        
+        console.log('compare states: ',this.state)
         return (
             
             <div className='container'>
                 <div className='content'>
-                    
-                    
-                    
                     <div className='compare-top-content'>
                         <div>
                         <label>Link tài sản: </label>
@@ -275,7 +277,6 @@ class Home extends Component {
                         <>
                         <h3>Nội dung file:</h3>
                         <pre className='file-content'>{this.state.fileContent}</pre>
-                        
                         </>
                     }
                 </div>
